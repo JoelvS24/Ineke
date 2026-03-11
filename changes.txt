@@ -1,0 +1,58 @@
+Changes made to Notebook2_Ineke (2).ipynb
+==========================================
+
+The following bugs were identified and fixed in Notebook 2 (02_harmonization.ipynb):
+
+---
+
+Bug 1 – Cell 26: Incorrect column used when building radiomics_ids (ID mismatch)
+----------------------------------------------------------------------------------
+Problem:
+  The variable `radiomics_ids` was built from the raw caseid column
+  (`features_df[ID_COL]`), while `metadata_ids` was built from the normalized
+  ISLES ID column (`df_meta["subject_id_norm"]`). These two sets use different
+  ID formats (e.g. raw caseids vs. "sub-strokecase0001" format), so their
+  intersection would always be empty, resulting in no subjects being matched and
+  an empty merged dataset.
+
+  Also, the subsequent `features_aligned` filter used `features_df[ID_COL]`
+  instead of the normalized column, and the merge used `left_on=ID_COL` instead
+  of the normalized column — both making the merge fail silently with 0 rows.
+
+Fix applied:
+  - Changed `radiomics_ids = set(features_df[ID_COL])` to
+    `radiomics_ids = set(features_df["subject_id_norm"])`.
+  - Changed `features_df[features_df[ID_COL].isin(common_ids)]` to
+    `features_df[features_df["subject_id_norm"].isin(common_ids)]`.
+  - Changed the merge from `left_on=ID_COL, right_on="subject_id_norm"` to
+    `on="subject_id_norm"` (both sides now use the same normalized ID column).
+
+---
+
+Bug 2 – Cell 28: Rename creates a duplicate column (subject_id_norm)
+----------------------------------------------------------------------
+Problem:
+  In Cell 19, `df_meta["subject_id_norm"]` was already created by applying the
+  `to_isles_id` normalization function to `df_meta["subject_id"]`. So df_meta
+  already contained both a `subject_id` column and a `subject_id_norm` column.
+
+  Cell 28 then called:
+      df_meta = df_meta.rename(columns={"subject_id": "subject_id_norm"})
+
+  Since `subject_id_norm` already existed, this rename created a second
+  `subject_id_norm` column in the DataFrame, causing the subsequent merge
+  to behave unpredictably (pandas does not prevent duplicate column names
+  via rename).
+
+Fix applied:
+  - Replaced the problematic rename line with:
+      df_meta = df_meta.drop(columns=["subject_id"], errors="ignore")
+  This removes the now-redundant original `subject_id` column, leaving the
+  already-normalized `subject_id_norm` column intact for the merge.
+
+---
+
+Summary of all changed cells in Notebook 2:
+  - Cell 26: Fixed radiomics_ids to use normalized subject IDs; fixed filter
+             and merge to use "subject_id_norm" throughout.
+  - Cell 28: Replaced rename (which caused a duplicate column) with drop.
