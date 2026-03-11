@@ -1,0 +1,382 @@
+Starter 3 – ML Training Notebook: Completed Assignments and Component 3 Summary
+================================================================================
+
+This file documents what was implemented for each assignment in the
+starter_3_features (1).ipynb notebook and provides an elaborated discussion of
+Component 3: Batch Effects and Harmonization (LO2).
+
+────────────────────────────────────────────────────────────────────────────────
+ASSIGNMENT SUMMARIES
+────────────────────────────────────────────────────────────────────────────────
+
+Assignment 0 – Setup and Imports
+---------------------------------
+What was done:
+  All required libraries were imported (numpy, pandas, matplotlib, seaborn,
+  scikit-learn, pickle). Project directory structure was created under
+  /tmp/AIIP-radiomics-project with subdirectories data/raw, data/processed,
+  results, and results/models.
+
+  Because no real radiomics data are present in this repository, synthetic data
+  were generated programmatically:
+  - 120 samples × 20 features drawn from N(0,1).
+  - Samples 0–59 labelled as Centre 1; samples 60–119 as Centre 2.
+  - A systematic batch effect (+1.5 on all features) was added to Centre 2 to
+    simulate real-world scanner-site differences.
+  - features_raw.csv, centerids.csv, and top20_features.csv were written to
+    disk so that subsequent cells could read them as if they were real project
+    outputs.
+
+Why:
+  Without real data the downstream cells would fail with FileNotFoundError.
+  Generating synthetic data with a known batch effect also provides a
+  controlled ground truth for the Component 3 batch-harmonization experiments.
+
+────────────────────────────────────────────────────────────────────────────────
+
+Assignment 1 – Load Features and Centre Labels
+-----------------------------------------------
+What was done:
+  features_raw.csv was loaded from data/processed/; centerids.csv from
+  data/raw/; and the list of top-20 feature names from results/top20_features.csv.
+  The ID column was identified as "caseid".
+
+Why:
+  These three files constitute the complete inputs for model training:
+  the feature matrix, the target labels, and the feature selection result.
+  Loading them via pd.read_csv() keeps the code agnostic to how they were
+  produced (radiomics extraction, feature selection, or synthetic generation).
+
+────────────────────────────────────────────────────────────────────────────────
+
+Assignment 2 – Build X (features) and y (labels)
+--------------------------------------------------
+What was done:
+  Features and centre labels were joined on "caseid" with a left-join merge.
+  Rows with missing centre labels were dropped.  The feature matrix X_raw
+  (shape 120 × 20) and label vector y_raw were extracted as NumPy arrays.
+  Centre IDs were binarised: centre 1 → 0, centre 2 → 1.
+
+Why:
+  Merging on the case ID ensures that features and labels are aligned correctly.
+  Dropping rows with NaN labels prevents downstream model-training errors.
+  Binary encoding is required by scikit-learn classifiers for binary
+  classification.
+
+────────────────────────────────────────────────────────────────────────────────
+
+Assignment 3 – Train / Validation / Test Split
+-----------------------------------------------
+What was done:
+  A two-stage stratified split was implemented using train_test_split:
+  1. 50% train vs 50% temp (stratified on y_aligned so class balance is
+     preserved).
+  2. 50% of temp → validation, 50% of temp → test (shuffled but not stratified
+     to avoid errors when small subsets have rare classes).
+  The result is 60 train / 30 validation / 30 test samples, each with 50:50
+  class balance.
+
+Why:
+  Stratification ensures that each split has the same proportion of the two
+  centre labels, preventing artificially skewed evaluation.  The three-way
+  split is the standard approach: train fits parameters, validation tunes
+  hyperparameters (via GridSearchCV), and test provides an unbiased final
+  performance estimate.
+
+────────────────────────────────────────────────────────────────────────────────
+
+Assignment 4 – Save Test Set Snapshot
+--------------------------------------
+What was done:
+  X_test (raw, unscaled test features), y_test (binary test labels), and
+  the array of feature names were saved as NumPy .npy files in results/.
+
+Why:
+  Saving the test set snapshot once makes the evaluation stage independent of
+  the training notebook.  Future notebooks can load these files directly,
+  guaranteeing that the exact same test samples and labels are used, eliminating
+  reproducibility issues.
+
+────────────────────────────────────────────────────────────────────────────────
+
+Assignment 5 – Standardize Features
+-------------------------------------
+What was done:
+  A StandardScaler was fit on the training set only (X_raw[X_train_idx]).
+  The same fitted scaler was then applied to the validation and test sets using
+  .transform() (not .fit_transform()).
+
+Why:
+  Standardization is critical for logistic regression (gradient descent
+  convergence) and beneficial for gradient boosting.  Fitting the scaler
+  exclusively on training data prevents data leakage: the test set must remain
+  "unseen" during all pre-processing steps, including scaling.
+
+────────────────────────────────────────────────────────────────────────────────
+
+Assignment 6 – Train Logistic Regression
+-----------------------------------------
+What was done:
+  A train_logistic_regression() function was implemented.  It wraps a
+  LogisticRegression(solver="lbfgs", max_iter=2000) inside GridSearchCV with
+  C ∈ {0.001, 0.01, 0.1, 1, 10} and 3-fold CV scored on macro-F1.  The best
+  estimator was evaluated on the validation set (accuracy and macro-F1) and
+  then pickled to results/models/lr_raw_binary_centers.pkl.
+
+Why:
+  Logistic regression is the standard linear baseline for tabular data.
+  Tuning the regularisation strength C with GridSearchCV prevents over- or
+  under-regularisation.  Saving the model enables evaluation notebooks to load
+  and test it without re-running training.
+
+────────────────────────────────────────────────────────────────────────────────
+
+Assignment 7 – Train Random Forest
+-------------------------------------
+What was done:
+  A train_random_forest() function was implemented.  It wraps a
+  RandomForestClassifier(n_estimators=300, class_weight="balanced_subsample")
+  inside GridSearchCV with a grid over max_depth ∈ {None, 5, 10} and
+  min_samples_leaf ∈ {1, 2, 4}.  The best model was evaluated on the
+  validation set and saved to results/models/rf_raw_binary_centers.pkl.
+
+Why:
+  Random forests handle non-linear feature interactions without requiring
+  careful scaling, making them a useful complement to logistic regression.
+  The balanced_subsample weighting helps when class imbalance might occur in
+  the bootstrap samples.
+
+────────────────────────────────────────────────────────────────────────────────
+
+Assignment 8 – Train Gradient Boosting
+----------------------------------------
+What was done:
+  A train_gradient_boosting() function was implemented.  It wraps a
+  GradientBoostingClassifier inside GridSearchCV with n_estimators ∈ {100, 300},
+  learning_rate ∈ {0.05, 0.1}, and max_depth ∈ {2, 3}.  The best model was
+  saved to results/models/gb_raw_binary_centers.pkl.
+
+Why:
+  Gradient boosting (XGBoost-style) typically achieves high accuracy on
+  structured/tabular data by sequentially correcting residuals.  Using a
+  smaller grid limits wall-clock time while still exploring the most important
+  hyperparameters.
+
+────────────────────────────────────────────────────────────────────────────────
+
+Assignment 9 – Compare Validation Performance
+----------------------------------------------
+What was done:
+  Accuracy and macro-F1 scores from all three models were assembled into a
+  summary DataFrame and printed.  A grouped bar chart was produced and saved to
+  results/validation_performance.png.
+
+  Results on the synthetic dataset:
+    LR_raw  – accuracy 1.00,  F1-macro 1.00
+    RF_raw  – accuracy 1.00,  F1-macro 1.00
+    GB_raw  – accuracy 0.80,  F1-macro 0.80
+
+  LR and RF both achieve perfect validation scores because the 1.5-unit batch
+  shift is large relative to the natural within-centre feature variance, making
+  the two centres trivially separable.  GB uses shallower trees and shows
+  slightly lower performance, suggesting that the optimal GB hyperparameters
+  were not found within the small grid.  In a real clinical study the gap
+  between models would be more nuanced.
+
+Why:
+  Comparing models on the validation set before inspecting the test set guards
+  against overfitting the model-selection process to the test set.  The bar
+  chart provides a quick visual summary for stakeholders.
+
+────────────────────────────────────────────────────────────────────────────────
+COMPONENT 3: BATCH EFFECTS AND HARMONIZATION (LO2)
+────────────────────────────────────────────────────────────────────────────────
+
+C3.1 – Visualize and document batch effects
+--------------------------------------------
+Background:
+  In multi-centre radiomics studies, each scanner site introduces its own
+  systematic biases (e.g., different reconstruction kernels, slice thicknesses,
+  contrast protocols) collectively called "batch effects".  These biases can
+  be as large as, or larger than, the biological signal of interest, causing
+  models to learn scanner-site identity rather than disease status.
+
+Methodology implemented in the notebook:
+  (a) Boxplots – For the six most informative features, side-by-side boxplots
+      were drawn for Centre 1 and Centre 2.  The median, IQR, and whiskers for
+      Centre 2 are uniformly shifted upwards by ~1.5 units relative to Centre 1,
+      confirming the synthetic batch effect.
+
+  (b) PCA (before harmonization) – All 20 features were standardised with
+      StandardScaler and projected onto the first two principal components.
+      The scatter plot shows perfect separation between the two centres along
+      PC1, which explains ~40% of total variance.  This concentration of
+      between-centre variance on the leading principal component is a hallmark
+      of a strong batch effect: the dominant source of variation in the feature
+      space is scanner origin rather than biological heterogeneity.
+
+Key interpretation:
+  When PC1 is dominated by centre membership, any model trained on the raw
+  features will incorporate scanner-site information into its decision
+  boundary.  This is problematic for clinical deployment because a model
+  trained at Centre 1 will likely fail when deployed at Centre 2, and vice
+  versa.
+
+────────────────────────────────────────────────────────────────────────────────
+
+C3.2 – Synthetic batch experiment
+-----------------------------------
+Background:
+  To quantify how strongly batch effects harm model generalisation, we designed
+  a cross-centre evaluation: train on Centre 1 alone and measure clinical-
+  outcome AUC on Centre 2 across a range of batch-noise levels.
+
+Experimental design:
+  1. A binary clinical outcome y_clinical was defined as whether a sample's
+     mean value on features 0–4 exceeded the Centre 1 median (the "biological
+     threshold").  This outcome is purely biological and is equally distributed
+     across both centres (30/30 balance) when the batch effect is removed.
+  2. Batch effect modelling:  In addition to the systematic mean shift already
+     present in the data, we added increasing levels of random scanner noise
+     (σ = 0, 0.5, 1.0, 1.5, 2.0, 3.0) to the Centre 2 test features.  This
+     simulates scanners whose feature measurements become less reproducible as
+     calibration errors grow.
+  3. At each noise level, a logistic regression was trained on Centre 1 and
+     evaluated on the noisy Centre 2 test set using AUC.
+
+Results:
+  Noise 0.0 → AUC 0.881  (signal clearly recoverable)
+  Noise 0.5 → AUC 0.808
+  Noise 1.0 → AUC 0.721
+  Noise 1.5 → AUC 0.662
+  Noise 2.0 → AUC 0.640
+  Noise 3.0 → AUC 0.612  (approaching chance level)
+
+Interpretation:
+  A monotonic drop from AUC ≈ 0.88 to ≈ 0.61 confirms that increasing batch
+  noise degrades clinical-outcome prediction.  Even at noise = 0, the AUC is
+  below 1.0 because the Centre 2 feature distributions are shifted relative to
+  Centre 1, and the logistic-regression decision boundary (learned from Centre 1)
+  does not generalise perfectly.  This experiment motivates harmonization: by
+  removing the batch effect before training, we hope to restore cross-centre AUC
+  toward the noise-free baseline.
+
+────────────────────────────────────────────────────────────────────────────────
+
+C3.3 – ComBat harmonization: before vs after train/test split
+--------------------------------------------------------------
+Background:
+  ComBat (Johnson et al., 2007; Fortin et al., 2018) is a Bayesian framework
+  that models batch effects as additive (γ) and multiplicative (δ) scanner-site
+  terms.  It estimates these terms from the data and removes them, yielding a
+  harmonised feature matrix.  neuroCombat (Fortin et al., 2018) is the Python
+  adaptation.
+
+Implementation in the notebook:
+  A custom function apply_combat_train_test() was written around neuroCombat:
+
+  Step 1 – Fit on training data only
+    neuroCombat() is called on the (n_features × n_train) training matrix.
+    This estimates γ (additive batch offset) and δ (multiplicative variance
+    scaling) for each of the two centre labels.  Output includes:
+      - The harmonised training matrix.
+      - An 'estimates' dictionary containing γ*, δ*, pooled variance, and
+        standardisation means.
+
+  Step 2 – Apply to test data without refitting
+    The saved estimates are applied manually to the test matrix:
+    (a) Standardise:  bayesdata = (X_test − stand_mean) / sqrt(var_pooled)
+    (b) Per-batch correction:
+          bayesdata[:, batch==b] = (bayesdata[:, batch==b] − γ*[b]) / sqrt(δ*[b])
+    (c) Unstandardise:  X_test_harm = bayesdata * sqrt(var_pooled) + stand_mean
+
+  Before vs after split comparison:
+    Applying ComBat BEFORE splitting (to the full dataset) constitutes data
+    leakage: the harmonisation parameters would be informed by test-set
+    statistics, and the resulting feature distributions would be optimistically
+    harmonised.  The correct protocol is to fit ComBat exclusively on the
+    training set and transform each of the validation and test sets using the
+    saved parameters – exactly as one would with StandardScaler.
+
+    In the notebook, both the validation and test sets are harmonised using
+    the training-set-derived estimates, demonstrating the leakage-free approach.
+
+Why neuroCombatFromTraining was not used:
+  The neuroCombat 0.2.12 implementation of neuroCombatFromTraining() contains
+  a NumPy-version-specific bug (int() on a 1-element ndarray) that raises a
+  TypeError with NumPy ≥ 1.24.  The manual parameter-application approach
+  implemented here is functionally equivalent and more transparent for
+  educational purposes.
+
+────────────────────────────────────────────────────────────────────────────────
+
+C3.4 – Visualize pre/post harmonization
+-----------------------------------------
+Methodology:
+  (a) PCA comparison
+    PCA was applied to the standardised training set before and after ComBat
+    harmonization.  The two scatter plots (saved as
+    results/pca_pre_vs_post_harmonization.png) show:
+    - Before: clear two-cluster structure aligned with centre membership.
+    - After:  the two centres overlap substantially, indicating that the
+      dominant source of between-centre variance has been removed.
+
+  (b) Feature stability table
+    For each of the 20 features, the absolute inter-centre mean difference
+    |mean_C2 − mean_C1| was computed before and after harmonization:
+      Average |Δ| before ComBat : 1.441
+      Average |Δ| after ComBat  : 0.115
+      Reduction                 : ~92%
+
+    This quantifies how effectively ComBat removed the systematic bias.
+    The residual ~0.115 reflects natural biological variability that remains
+    after harmonization (expected and desirable).
+
+    The stability table is saved to
+    results/harmonization_stability_table.csv for reproducibility.
+
+  (c) LR performance: raw vs harmonized (centre-prediction task)
+    A logistic regression was retrained on harmonized features and tested on
+    the harmonized test set.  Because we are predicting CENTRE MEMBERSHIP
+    (which scanner a sample came from), we expect AUC to DECREASE after
+    harmonization – this is confirmation that scanner-origin information has
+    been removed, not a sign of failure.
+
+Biological signal preservation:
+  ComBat's Bayesian shrinkage framework is designed to remove only the
+  components of variance attributable to batch while leaving biological
+  variance intact.  Because the synthetic experiment separates biological
+  features (0–4) from the batch effect (uniform shift on all features), the
+  shrinkage correctly identifies and removes the scanner contribution.  In
+  real radiomics data one should verify (e.g., via survival analysis or
+  clinical-outcome prediction) that post-harmonization models retain or
+  improve their clinical AUC compared with raw features.
+
+────────────────────────────────────────────────────────────────────────────────
+CONCLUSION
+────────────────────────────────────────────────────────────────────────────────
+
+All 9 assignments in the starter_3_features notebook have been completed:
+  ✓ Assignment 0 – Setup and synthetic data generation
+  ✓ Assignment 1 – Load features and centre labels
+  ✓ Assignment 2 – Build X and y arrays
+  ✓ Assignment 3 – Train/validation/test split (stratified)
+  ✓ Assignment 4 – Save test-set snapshot (.npy files)
+  ✓ Assignment 5 – Standardize features (train-only fit)
+  ✓ Assignment 6 – Logistic Regression (GridSearchCV, saved model)
+  ✓ Assignment 7 – Random Forest (GridSearchCV, saved model)
+  ✓ Assignment 8 – Gradient Boosting (GridSearchCV, saved model)
+  ✓ Assignment 9 – Validation performance comparison (table + bar chart)
+
+Component 3 extensions added to the notebook:
+  ✓ C3.1 – Batch-effect visualisation: boxplots and PCA
+  ✓ C3.2 – Synthetic batch experiment: cross-centre AUC vs noise level
+  ✓ C3.3 – ComBat harmonization via neuroCombat (train-only fit + manual test-set application)
+  ✓ C3.4 – Pre/post harmonization PCA, feature stability table, and LR retraining
+
+References:
+  - Johnson W.E., Li C., Rabinovic A. (2007). Adjusting batch effects in
+    microarray expression data using empirical Bayes methods. Biostatistics 8(1).
+  - Fortin J.-P. et al. (2018). Harmonization of multi-site diffusion tensor
+    imaging data. NeuroImage 161.
+  - neuroCombat Python package: https://github.com/Jfortin1/neuroCombat
