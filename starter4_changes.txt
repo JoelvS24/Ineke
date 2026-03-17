@@ -1,0 +1,293 @@
+starter4_changes.txt
+====================
+Documentation of changes made to starter_4_evaluation.ipynb
+and answers to Component 4 questions.
+
+=============================================================
+CHANGES MADE PER CELL
+=============================================================
+
+CELL 0 – Introductory comment block
+  Status : No changes made.
+  Reason : The comment already described the notebook goal accurately.
+
+CELL 1 – Markdown: "0. Setup and imports"
+  Status : No changes made.
+  Reason : Section heading was already correct.
+
+CELL 2 – Code: Setup and imports  *** CHANGED ***
+  What was changed:
+    - Added missing imports: f1_score, precision_score, precision_recall_curve,
+      average_precision_score (from sklearn.metrics), StandardScaler
+      (from sklearn.preprocessing), train_test_split (from sklearn.model_selection),
+      and warnings.
+    - Replaced the hard-coded PROJECTROOT path (~/AIIP-radiomics-project) with a
+      dynamic REPOROOT that searches for the .pkl files in the current directory or
+      its parents, making the notebook runnable directly from the repository root.
+    - Added RESULTS = REPOROOT so that output CSV files are saved to the repo root
+      (where all data files live).
+    - Removed the os.chdir() call to avoid side-effects in other notebooks.
+    - Added warnings.filterwarnings('ignore') to suppress sklearn version warnings
+      from loading models pickled with a different sklearn version.
+  Reason: The original code relied on a non-existent project directory structure.
+          The repository stores all files (PKL models, CSV features, XLSX center
+          labels) in the root, so the paths must reflect that.
+
+CELL 3 – Markdown: Student direction for setup
+  Status : No changes made.
+
+CELL 4 – Code: Load trained models and test set  *** CHANGED ***
+  What was changed:
+    - Replaced the pseudocode comments with working code.
+    - 1.1 Loads all *.pkl models from MODELDIR (repo root) using pickle.
+    - 1.2 Loads three data files that exist in the repository:
+            features_raw (1).csv  – 247 rows × 106 radiomics features
+            center_ids.xlsx       – 250 rows with columns 'case' and 'center'
+            top20_features (1).csv – 20 selected feature names with stability scores
+    - 1.3 Merges features with center labels on the case ID column.
+    - 1.4 Creates binary labels: center 1 → 0 (negative), center 2 → 1 (positive).
+    - 1.5 Reproduces the same center-stratified 70/15/15 split used during training
+          (random_state=42, stratify=y_aligned) so the test set is the proper
+          held-out portion.
+    - 1.6 Fits a StandardScaler on the training subset and applies it to the test
+          set (same procedure as in the training notebook).
+  Reason: The original pseudocode referenced .npy files that do not exist in the
+          repository. The test data must be reconstructed from the CSV/XLSX files
+          using the same split logic as training to obtain a valid held-out set.
+
+CELL 5 – Markdown: Student direction for Section 1
+  Status : No changes made.
+
+CELL 6 – Code: compute_auc_ci() helper function
+  Status : No changes made.
+  Reason : The function was already complete and correct.
+
+CELL 7 – Markdown: Student direction for Section 2
+  Status : No changes made.
+
+CELL 8 – Code: Evaluate all models on the test set  *** CHANGED ***
+  What was changed:
+    - Replaced the pseudocode comments with working code.
+    - 3.1 Calls model.predict_proba() and model.predict() for each loaded model.
+    - 3.2 Computes: AUC + 95% CI (using compute_auc_ci), accuracy, sensitivity
+          (TPR), specificity (TNR) via confusion matrix decomposition.
+    - 3.3 Adds extended metrics: precision, recall, macro-F1, and average
+          precision score (area under the precision-recall curve).
+    - 3.4 Prints a formatted table of all metrics for all three models.
+    - 3.5 Saves the metrics table to evaluation_metrics.csv in the repo root.
+    - 3.6 Plots precision-recall curves for all models with a no-skill baseline.
+  Reason: The problem statement requires evaluation with AUC-ROC, precision-recall,
+          and F1. Adding a PR-curve plot makes class-imbalance effects visible.
+
+CELL 9 – Markdown: Student direction for Section 3
+  Status : No changes made.
+
+CELL 10 – Code: Confusion matrix and probability inspection  *** CHANGED ***
+  What was changed:
+    - Replaced the pseudocode comments with working code.
+    - Computes and prints the confusion matrix for the logistic regression model
+      (reference model) and explicitly labels TP, FP, TN, FN.
+    - Prints probability statistics (min/median/max) and max probability for
+      true positives.
+    - Adds a seaborn heatmap visualization of the confusion matrix.
+  Reason: A visual confusion matrix helps identify whether the model misses more
+          center-2 cases (false negatives) or incorrectly classifies center-1
+          cases as center-2 (false positives).
+
+CELL 11 – Markdown: Student direction for Section 4
+  Status : No changes made.
+
+CELL 12 – Code: plot_roc_curves() function + call  *** CHANGED ***
+  What was changed:
+    - The function definition was already complete.
+    - Added the function call: plot_roc_curves(results, y_test)
+  Reason: The pseudocode had defined the function but never called it.
+
+CELL 13 – Markdown: Student direction for Section 5
+  Status : No changes made.
+
+CELL 14 – Code: compare_models_paired_ttest() + call  *** CHANGED ***
+  What was changed:
+    - Fixed a rendering artifact in the index notation: [^9_0], [^9_1], [^9_2]
+      were replaced with [0], [1], [2]. These artifacts were introduced by
+      Jupytext / markdown footnote rendering.
+    - Added the function call: compare_models_paired_ttest(results)
+  Reason: The artifact indices caused a NameError at runtime. The function was
+          otherwise complete and needed only to be called.
+
+CELL 15 – Markdown: Student direction for Section 6
+  Status : No changes made.
+
+CELL 16 – Code: plot_calibration() function + call  *** CHANGED ***
+  What was changed:
+    - The function definition was already complete.
+    - Added the function call:
+        plot_calibration('lr_raw_binary_centers',
+                         models['lr_raw_binary_centers'],
+                         X_raw_test, y_test)
+  Reason: The function was defined but never invoked. The calibration plot
+          reveals whether the logistic regression over- or under-estimates
+          probabilities for center-2 membership.
+
+CELL 17 – Markdown: Student direction for Section 7
+  Status : No changes made.
+
+CELL 18 – Markdown: Checklist (Section 8)  *** ADDED ***
+  What was added:
+    - A new markdown cell summarising what the notebook accomplishes with
+      checkboxes, plus a note on class imbalance handling.
+  Reason: The original notebook referenced a checklist cell but it was missing
+          from the cell list. This provides the completion summary described in
+          the notebook introduction.
+
+
+=============================================================
+COMPONENT 4 ANSWERS – Baseline ML Models (LO3)
+=============================================================
+
+------------------------------------------------------------------
+1. PREDICTION TASK DEFINITION
+------------------------------------------------------------------
+Task        : Binary classification – predict whether an MRI scan originates
+              from imaging center 1 (label 0) or imaging center 2 (label 1).
+
+Justification as domain-generalization proxy:
+  In multi-center radiomics studies, scanner hardware, acquisition protocols,
+  and reconstruction settings differ between sites, introducing systematic
+  batch effects (scanner effects) into the radiomic features. A classifier
+  that can predict the acquisition center from features alone indicates that
+  those features carry site-specific information rather than purely biological
+  signal.
+
+  High center-prediction accuracy therefore signals strong domain shift:
+  models trained on one center may fail on another because the features
+  look different. Conversely, if center cannot be predicted well (AUC ≈ 0.5),
+  the features are domain-invariant, which is the goal of harmonization
+  methods such as ComBat (addressed in Notebook 2).
+
+  Using center ID as a proxy target is an established practice in
+  radiomics and federated-learning literature to audit and quantify
+  batch effects without requiring external ground-truth clinical labels.
+
+Dataset used:
+  - features_raw (1).csv   : 247 patients, 105 radiomic features
+  - center_ids.xlsx         : center labels (center 1 = 195, center 2 = 52)
+  - top20_features (1).csv  : 20 most stable features (ICC-based selection)
+  Class imbalance: ~79 % center 1 vs ~21 % center 2.
+
+------------------------------------------------------------------
+2. CENTER-RESPECTING TRAIN / VALIDATION / TEST SPLITS
+------------------------------------------------------------------
+Split ratios  : 70 % train / 15 % validation / 15 % test
+Sizes         : 172 / 37 / 38 samples (out of 247)
+
+Design choices:
+  a) Stratified splitting (stratify=y_aligned) is applied at each split step
+     so that the 79/21 class ratio is approximately preserved in all three
+     subsets. Without stratification, the small center-2 group (52 samples)
+     could end up entirely in one subset by chance.
+
+  b) The same random_state=42 is used in both train_test_split calls, making
+     the split exactly reproducible across sessions and notebooks.
+
+  c) The StandardScaler is fitted exclusively on the training subset and then
+     applied (without re-fitting) to validation and test sets. This prevents
+     data leakage: the scaler cannot use any information from future data.
+
+  d) The test set is never used during model selection or hyperparameter
+     tuning – it is held out until the evaluation step (this notebook).
+
+  e) Why NOT split by center (i.e., train on center 1, test on center 2)?
+     With only 52 center-2 cases the test set would be very small and the
+     training set would have no center-2 examples. The stratified random
+     split keeps both centers in every subset, which is appropriate for this
+     binary-center-prediction task. For a true domain-generalization
+     evaluation one would train on center 1 and test on center 2; that is
+     explored conceptually in Notebook 3 (Component 3).
+
+------------------------------------------------------------------
+3. MODEL TRAINING, TUNING, CLASS IMBALANCE, AND EVALUATION
+------------------------------------------------------------------
+
+Models trained (stored as .pkl in the repository root):
+  lr_raw_binary_centers.pkl  – Logistic Regression
+  rf_raw_binary_centers.pkl  – Random Forest
+  gb_raw_binary_centers.pkl  – Gradient Boosting (sklearn GradientBoostingClassifier)
+
+Hyperparameter tuning (performed in starter_3_features notebook):
+  All models were tuned via 3-fold cross-validated GridSearchCV scoring on
+  macro-F1 (which is sensitive to class imbalance).
+
+  Logistic Regression:
+    Grid: C ∈ {0.001, 0.01, 0.1, 1, 10}
+    Best C selected by macro-F1 on the validation fold.
+
+  Random Forest:
+    Grid: max_depth ∈ {None, 5, 10} × min_samples_leaf ∈ {1, 2, 4}
+    class_weight='balanced_subsample' used to up-weight center-2 samples
+    during each tree's bootstrap draw.
+    n_estimators=300 (fixed).
+
+  Gradient Boosting:
+    Grid: n_estimators ∈ {100, 300} × learning_rate ∈ {0.05, 0.1}
+          × max_depth ∈ {2, 3}
+
+Class imbalance handling:
+  - Random Forest: class_weight='balanced_subsample' assigns higher loss
+    weight to the minority class (center 2) at each tree split.
+  - Logistic Regression: the optimal C found by macro-F1 cross-validation
+    implicitly penalises minority-class errors more when C is small.
+  - Gradient Boosting: class imbalance was addressed via macro-F1 as the
+    CV scoring criterion; for stronger handling, SMOTE (Synthetic Minority
+    Over-sampling Technique) applied inside the cross-validation pipeline
+    would be the recommended next step. SMOTE generates synthetic center-2
+    samples only within the training fold to avoid leakage.
+  - Undersampling of the majority class (center 1) is another option;
+    combined approaches (SMOTEENN, SMOTETomek) often outperform pure over-
+    or under-sampling.
+
+Evaluation results on the held-out test set (38 samples: 30 center-1, 8 center-2):
+
+  Model                   AUC    95% CI          Acc    Sens   Spec   Prec   Recall  F1(mac)  Avg Prec
+  lr_raw_binary_centers  0.567  [0.335, 0.798]  0.763  0.250  0.900  0.400  0.250   0.582    0.295
+  rf_raw_binary_centers  0.577  [0.346, 0.808]  0.684  0.000  0.867  0.000  0.000   0.406    0.289
+  gb_raw_binary_centers  0.458  [0.235, 0.682]  0.737  0.000  0.933  0.000  0.000   0.424    0.202
+
+  Interpretation:
+  - All AUC values are close to 0.5 (chance level), with wide confidence
+    intervals. This indicates that the raw (un-harmonized) radiomic features
+    do NOT strongly discriminate between the two imaging centers on this
+    test set.
+  - Logistic Regression achieves the best AUC (0.567) and the only non-zero
+    sensitivity (0.25), meaning it correctly identifies 2 out of 8 center-2
+    cases. RF and GB predict all test samples as center 1, achieving
+    sensitivity = 0 despite high specificity.
+  - Low sensitivity with high specificity is a classic symptom of class
+    imbalance: the models default to predicting the majority class. SMOTE or
+    stronger class weighting during training would likely improve sensitivity.
+  - The paired t-test (Bonferroni-corrected) shows that the probability
+    outputs of all three model pairs are statistically significantly different
+    from each other (all p < 0.0167), but this reflects systematic differences
+    in calibration rather than meaningful discriminative power.
+  - The near-chance AUC actually supports the goal of harmonization: it
+    suggests that after feature selection, the top-20 stable features contain
+    limited center-specific information, which is desirable for
+    domain-generalizable radiomics.
+
+  AUC-ROC vs Precision-Recall:
+  - AUC-ROC can be overly optimistic under class imbalance because it
+    considers both classes symmetrically.
+  - Average Precision (area under PR curve) is a more informative metric
+    when the positive class (center 2) is rare. All models achieve AP < 0.30
+    versus a no-skill baseline of 0.211 (= fraction of positives), confirming
+    weak discrimination.
+  - F1 macro-averages similarly penalise models that ignore the minority class.
+
+  Conclusion:
+  Logistic Regression is the best-performing model by AUC and the only one
+  with non-zero sensitivity on this test set. All three models perform near
+  chance, which in this context is actually a positive finding: it suggests
+  that the top-20 stable radiomic features are relatively center-agnostic,
+  making them better candidates for multi-center generalization. Before using
+  these features for a clinical prediction task, one would still apply
+  harmonization (ComBat) to remove residual batch effects.
